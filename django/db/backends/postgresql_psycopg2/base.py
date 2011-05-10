@@ -117,6 +117,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         new_connection = False
         set_tz = False
         settings_dict = self.settings_dict
+        search_path = None
         if self.connection is None:
             new_connection = True
             set_tz = settings_dict.get('TIME_ZONE')
@@ -137,6 +138,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 conn_params['host'] = settings_dict['HOST']
             if settings_dict['PORT']:
                 conn_params['port'] = settings_dict['PORT']
+            if 'search_path' in conn_params:
+                search_path = conn_params['search_path']
+                del conn_params['search_path']
             self.connection = Database.connect(**conn_params)
             self.connection.set_client_encoding('UTF8')
             self.connection.set_isolation_level(self.isolation_level)
@@ -146,6 +150,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         if new_connection:
             if set_tz:
                 cursor.execute("SET TIME ZONE %s", [settings_dict['TIME_ZONE']])
+            if search_path:
+                cursor.execute("SET SEARCH_PATH TO " + search_path)
             if not hasattr(self, '_version'):
                 self.__class__._version = get_version(cursor)
             if self._version[0:2] < (8, 0):
