@@ -162,6 +162,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         }
         conn_params.update(settings_dict['OPTIONS'])
         conn_params.pop('isolation_level', None)
+        conn_params.pop('search_path', None)
         if settings_dict['USER']:
             conn_params['user'] = settings_dict['USER']
         if settings_dict['PASSWORD']:
@@ -204,6 +205,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             finally:
                 cursor.close()
             # Commit after setting the time zone (see #17062)
+            if not self.get_autocommit():
+                self.connection.commit()
+
+        # Set search_path
+        options = self.settings_dict['OPTIONS']
+        search_path = options.get('search_path', [])
+        if search_path:
+            cursor = self.connection.cursor()
+            try:
+                cursor.execute("SET SEARCH_PATH TO " + ", ".join(search_path,))
+            finally:
+                cursor.close()
             if not self.get_autocommit():
                 self.connection.commit()
 
