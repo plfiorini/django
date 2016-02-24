@@ -162,6 +162,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         }
         conn_params.update(settings_dict['OPTIONS'])
         conn_params.pop('isolation_level', None)
+        conn_params.pop('search_path', None)
         if settings_dict['USER']:
             conn_params['user'] = settings_dict['USER']
         if settings_dict['PASSWORD']:
@@ -212,12 +213,22 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 self.connection.commit()
 
     def create_cursor(self, name=None):
-        if name:
-            # In autocommit mode, the cursor will be used outside of a
-            # transaction, hence use a holdable cursor.
-            cursor = self.connection.cursor(name, scrollable=False, withhold=self.connection.autocommit)
-        else:
-            cursor = self.connection.cursor()
+        # Set search_path
+        options = self.settings_dict['OPTIONS']
+        search_path = options.get('search_path', [])
+        if search_path:
+            if name:
+                # In autocommit mode, the cursor will be used outside of a
+                # transaction, hence use a holdable cursor.
+                cursor = self.connection.cursor(name, scrollable=False, withhold=self.connection.autocommit)
+            else:
+                cursor = self.connection.cursor()
+            try:
+                cursor.execute("SET SEARCH_PATH TO " + ", ".join(search_path,))
+            finally:
+                cursor.close()
+            if not self.get_autocommit():
+                self.connection.commit()
         cursor.tzinfo_factory = utc_tzinfo_factory if settings.USE_TZ else None
         return cursor
 
